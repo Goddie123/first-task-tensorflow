@@ -1,0 +1,164 @@
+---
+title: "project"
+output: html_document
+---
+This is my first try on loading data and modelling
+Lets load some data
+
+```{r}
+iris <- read.csv(url("http://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data"), header = FALSE) 
+```
+
+Analysis of  iris
+```{r}
+head(iris)
+str(iris)
+summary(iris)
+dim(iris)
+```
+
+Naming columns and data exploration
+```{r}
+names(iris) <- c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width", "Species")
+
+plot(iris$Petal.Length, 
+     iris$Petal.Width, 
+     pch=21, bg=c("red","green3","blue")[unclass(iris$Species)], 
+     xlab="Petal Length", 
+     ylab="Petal Width")
+```
+
+Checking for internal and overall correlation
+```{r}
+M <- cor(iris[,1:4])
+corrplot::corrplot(M,method ="circle")
+```
+
+Nomralizing data
+```{r}
+normalize <- function(x) {
+  num <- x - min(x)
+  denom <- max(x) - min(x)
+  return (num/denom)
+}
+iris_norm <- as.data.frame(lapply(iris[1:4], normalize))
+head(iris_norm)
+iris[,5] <- as.numeric(iris[,5]) -1
+iris <- as.matrix(iris)
+dimnames(iris) <- NULL
+head(iris)
+iris <- normalize(iris[,1:4])
+summary(iris)
+```
+
+Training and Testing data sets
+```{r}
+ind<- sample(2, nrow(iris), replace=TRUE, prob=c(0.67, 0.33))
+iris.training <- iris[ind==1, 1:4]
+iris.test <- iris[ind==2, 1:4]
+iris.trainingtarget <- iris[ind==1, 4]
+iris.testtarget <- iris[ind==2, 4]
+```
+
+Fiiting and compiling models
+
+```{r}
+library(tensorflow)
+library(keras)
+iris.trainLabels <- to_categorical(iris.trainingtarget)
+iris.testLabels <- to_categorical(iris.testtarget)
+model <- keras_model_sequential() 
+model %>% 
+    layer_dense(units = 8, activation = 'relu', input_shape = c(4)) %>% 
+    layer_dense(units = 3, activation = 'softmax')
+model %>% compile(
+     loss = 'sparse_categorical_crossentropy',
+     optimizer = 'adam',
+     metrics = 'accuracy'
+     )
+# Fit the model 
+model %>% fit(
+     iris.training, 
+     iris.trainLabels, 
+     epochs = 200, 
+     batch_size = 5, 
+     validation_split = 0.2
+ )
+```
+
+History visualisation of model
+
+```{r}
+history <- model %>% fit(
+     iris.training, 
+     iris.trainLabels, 
+     epochs = 200,
+     batch_size = 5, 
+     validation_split = 0.2
+ )
+plot(history)
+```
+Plots of loss of model
+
+```{r}
+plot(history$metrics$loss, main="Model Loss", xlab = "epoch", ylab="loss", col="blue", type="l")
+lines(history$metrics$val_acc, col="green")
+legend("bottomright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+```
+Plots of accuracy of model
+
+```{r}
+ 
+plot(history$metrics$acc, main="Model Accuracy", xlab = "epoch", ylab="accuracy", col="blue", type="l")
+lines(history$metrics$val_acc, col="green")
+legend("bottomright", c("train","test"), col=c("blue", "green"), lty=c(1,1))
+
+```
+Label Prediction
+
+```{r}
+classes <- model %>% predict_classes(iris.test, batch_size = 128)
+table(iris.testtarget, classes)
+```
+
+Model evaluation
+
+```{r}
+score <- model %>% evaluate(iris.test, iris.testLabels, batch_size = 128)
+print(score)
+
+```
+
+Adding layers to increase model fineness
+
+```{r}
+model <- keras_model_sequential() 
+
+# Add layers to model
+model %>% 
+    layer_dense(units = 8, activation = 'relu', input_shape = c(4)) %>% 
+    layer_dense(units = 5, activation = 'relu') %>% 
+    layer_dense(units = 3, activation = 'softmax')
+
+
+model %>% compile(
+     loss = 'sparse_categorical_crossentropy',
+     optimizer = 'adam',
+     metrics = 'accuracy'
+ )
+
+
+model %>% fit(
+     iris.training, iris.trainLabels, 
+     epochs = 200, batch_size = 5, 
+     validation_split = 0.2
+ )
+
+# Evaluate the model
+score <- model %>% evaluate(iris.test, iris.testLabels, batch_size = 128)
+
+# Print the score
+print(score)
+
+```
+
